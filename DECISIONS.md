@@ -743,11 +743,33 @@ retroactively-clean work.
 
 ## 2026-08-12 — Connected Railway to GitHub for auto-deploy on push to main
 
-**Decision:** `railway service source connect --repo gpark1230/incident-desk
---branch main --service api` — the `api` service now redeploys automatically
-whenever `main` is pushed, instead of requiring a manual `railway up` from a
-local machine. This directly resolves a previously-documented gap ("not
-GitHub-connected").
+**Decision:** the `api` service now redeploys automatically whenever `main` is
+pushed, instead of requiring a manual `railway up` from a local machine. This
+directly resolves a previously-documented gap ("not GitHub-connected").
+
+**Getting there took three attempts, worth recording exactly why:**
+
+1. `railway service source connect --repo gpark1230/incident-desk --branch main
+   --service api` (CLI) — set the repo/branch association (confirmed via
+   `railway status --json`, showed `"repo": "gpark1230/incident-desk"`), but
+   pushing afterward triggered **no deploy** at all, even after a full CI cycle
+   and several minutes of waiting.
+2. Disconnecting and reconnecting the same repo through the Railway
+   **dashboard UI** (Settings → Source) instead of the CLI — still no
+   auto-deploy on the next push.
+3. The actual fix: the dashboard has a **separate toggle**, "Auto deploys when
+   pushed to GitHub," independent from the repo/branch connection itself.
+   Connecting the source (by CLI or UI) only tells Railway *which* repo/branch
+   to associate with the service — it does not by itself enable triggering a
+   deploy *on push*. Only after explicitly switching that toggle on did a real
+   push actually trigger a deploy.
+
+**Lesson:** "connected" and "auto-deploying" turned out to be two independently
+gated settings, not one — the CLI (and the first UI pass) only ever configured
+the first. Worth remembering if this ever needs to be reconfigured, or if
+setting up CD on a different Railway project in the future: connecting the
+source is necessary but not sufficient, check for a separate deploy-trigger
+toggle.
 
 **Division of labor between GitHub Actions and Railway:** GitHub Actions is CI
 (runs tests + validates the Docker image build on every push); Railway's native

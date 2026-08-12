@@ -54,7 +54,7 @@ As of Aug 12, 2026, all core features from this file are built, tested, and depl
 - 19 pytest tests (auth, RBAC enforcement, incident/audit-log behavior) run against a real second Postgres DB, not mocks. All passing, in CI too.
 - **Alembic migrations** replace `Base.metadata.create_all()` entirely — schema is versioned, not guessed at startup.
 - **Dockerized**: `Dockerfile` + `docker-compose.yml` (API + real Postgres, one command, verified end to end via Colima since Docker Desktop wasn't available in-session).
-- **CI**: GitHub Actions runs the full test suite (against a real Postgres service container) and a Docker build check on every push. **CD**: Railway auto-deploys `main` on push (native GitHub integration, not scripted).
+- **CI**: GitHub Actions runs the full test suite (against a real Postgres service container) and a Docker build check on every push. **CD**: Railway auto-deploys `main` on push (native GitHub integration, not scripted) — confirmed with a real push actually triggering a deploy with no `railway up` involved, not just "the setting looks right."
 - Public GitHub repo with real incremental commit history: https://github.com/gpark1230/incident-desk
 - README with rationale, setup instructions (Docker Compose *and* plain Python), sample request/response, and API table.
 - Live deploy on Railway: https://api-production-1570.up.railway.app — pre-loaded with realistic demo incidents (not an empty screen on first visit), with published demo analyst/admin credentials so visitors can test write actions themselves.

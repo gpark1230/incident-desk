@@ -52,7 +52,7 @@ Every non-obvious engineering decision made while building this — including a 
 Every incident change is captured automatically — here's what closing an incident looks like from the audit trail:
 
 ```
-$ curl -X PATCH https://api.example.com/incidents/3 \
+$ curl -X PATCH https://api-production-1570.up.railway.app/incidents/3 \
     -H "Authorization: Bearer <analyst-or-admin-token>" \
     -H "Content-Type: application/json" \
     -d '{"status": "closed"}'
@@ -68,7 +68,7 @@ $ curl -X PATCH https://api.example.com/incidents/3 \
   "updated_at": "2026-08-12T11:25:56.358562-04:00"
 }
 
-$ curl https://api.example.com/incidents/3/audit-log \
+$ curl https://api-production-1570.up.railway.app/incidents/3/audit-log \
     -H "Authorization: Bearer <any-authenticated-token>"
 
 [

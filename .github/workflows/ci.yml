@@ -43,7 +43,7 @@ jobs:
         run: alembic upgrade head
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v
 
   docker-build:
     runs-on: ubuntu-latest

@@ -52,3 +52,15 @@ class IncidentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AuditLogOut(BaseModel):
+    id: int
+    incident_id: int
+    user_id: int
+    action: str
+    details: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

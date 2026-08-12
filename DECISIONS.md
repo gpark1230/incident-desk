@@ -246,3 +246,47 @@ incident's status right now leaves no record of who changed what or when. That's
 the next milestone.
 
 ---
+
+## 2026-08-12 — Audit log wiring: diff-based, one row per meaningful change
+
+**Decision:** `create_incident` writes one `AuditLog` row (`action="created"`).
+`update_incident` computes a diff — for each field actually sent in the `PATCH`
+body, it compares the old value to the new one, and only if they differ does it
+(a) apply the change and (b) add that field to a single `"; "`-joined `details`
+string on one `AuditLog` row (`action="updated"`). A `PATCH` that sends a field but
+with its current value (a genuine no-op) writes **no** audit row at all — verified
+by testing a same-value `PATCH` and confirming the audit trail didn't grow.
+
+**Why:** One row per *call*, not one row per *field*, keeps the audit trail
+readable as a human ("who did what, when") rather than a wall of single-field rows
+that need to be manually grouped back together. Skipping no-op updates keeps the
+log meaningful — a `PATCH` that changes nothing isn't a real state change worth an
+audit entry.
+
+**Also fixed along the way:** the first version of `details` printed
+`"severity: Severity.medium"` instead of `"severity: medium"` — `str(enum_member)`
+on a `class X(str, enum.Enum)` doesn't reliably return the plain value across
+Python versions/behavior. Added a small `_fmt()` helper in
+`app/routers/incidents.py` that explicitly reads `.value` for enum members. Worth
+remembering: don't trust implicit `str()`/f-string formatting of mixed-in enums —
+be explicit about `.value`.
+
+**Transaction detail worth explaining if asked:** `create_incident` calls
+`db.flush()` (not `db.commit()`) right after `db.add(incident)`. `flush()` sends
+the pending SQL to Postgres and assigns `incident.id` from the database's identity
+column, but doesn't end the transaction — so the audit row (which needs
+`incident.id` as a foreign key) can be built, and then both rows commit together
+in one transaction. If anything failed between `flush()` and `commit()`, both
+would roll back — never an incident row with no matching audit trail.
+
+**Also added:** `GET /incidents/{id}/audit-log` — read-only, any authenticated
+role (viewers included, since RBAC treats them as read-only everywhere, not
+locked out of the audit trail specifically). There is still no route anywhere
+that can update or delete an `AuditLog` row.
+
+**Verified end-to-end:** create → 1 audit row (`created`, with severity).
+`PATCH` changing 2 fields → 1 audit row (`updated`, both changes listed).
+`PATCH` re-sending an unchanged value → 0 new audit rows. Read via
+`/audit-log` as a viewer → 200 with the full, correctly-ordered trail.
+
+---

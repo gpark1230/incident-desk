@@ -42,7 +42,7 @@ Gavin is a self-taught backend learner working toward a backend engineering job,
 He explicitly chose to have this project built collaboratively/primarily by Claude rather than writing every line himself, given the real time constraint. This tradeoff was discussed openly beforehand: it's faster, but risks weak performance in live coding/pairing interview rounds or on-the-job debugging if understanding stays shallow. Mitigation, please follow it:
 
 1. As you build each piece, explain what it does and why in plain, simple language as you go — don't just drop finished code silently.
-2. After each major milestone (auth working, RBAC enforced, audit log working, tests passing, deployed), pause and have Gavin explain it back in his own words before moving to the next milestone. If his explanation reveals a real gap, flag it clearly and re-explain rather than accepting a vague answer and moving on.
+2. Do NOT pause after each milestone to make Gavin explain it back — he wants to build first and understand the whole project in one pass once it's finished, not be gated milestone-by-milestone (his explicit correction, 2026-08-12, after the original per-milestone check-in plan proved unwanted in practice). Keep explaining as you go per (1), just don't block progress on him repeating it back.
 3. Favor common, standard, explainable patterns over clever or obscure ones — this needs to hold up under interview questioning, not just work.
 4. Keep explanations plain-language first (short sentences, concrete examples, minimal unexplained jargon) — this is what has actually worked for Gavin so far, confirmed repeatedly.
 

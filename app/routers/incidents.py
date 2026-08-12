@@ -1,11 +1,12 @@
 import enum
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
 from app.database import get_db
-from app.models import AuditLog, Comment, Incident, User, UserRole
+from app.models import AuditLog, Comment, Incident, IncidentStatus, Severity, User, UserRole
 from app.schemas import AuditLogOut, CommentCreate, CommentOut, IncidentCreate, IncidentOut, IncidentUpdate
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -51,10 +52,35 @@ def create_incident(
 
 @router.get("", response_model=list[IncidentOut])
 def list_incidents(
+    status_: IncidentStatus | None = Query(None, alias="status"),
+    severity: Severity | None = None,
+    assigned_to_id: int | None = None,
+    created_after: datetime | None = None,
+    created_before: datetime | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return db.query(Incident).order_by(Incident.created_at.desc()).all()
+    query = db.query(Incident)
+
+    if status_ is not None:
+        query = query.filter(Incident.status == status_)
+    if severity is not None:
+        query = query.filter(Incident.severity == severity)
+    if assigned_to_id is not None:
+        query = query.filter(Incident.assigned_to_id == assigned_to_id)
+    if created_after is not None:
+        query = query.filter(Incident.created_at >= created_after)
+    if created_before is not None:
+        query = query.filter(Incident.created_at <= created_before)
+
+    return (
+        query.order_by(Incident.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{incident_id}", response_model=IncidentOut)

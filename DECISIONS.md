@@ -321,3 +321,35 @@ comment automatically as a `commented` entry right after `created`, `POST`
 comment on a nonexistent incident id → 404.
 
 ---
+
+## 2026-08-12 — Filtering and pagination on `GET /incidents`: query params, offset-based
+
+**Decision:** `list_incidents` gained optional query params: `status`, `severity`,
+`assigned_to_id`, `created_after`, `created_before`, plus `skip`/`limit` for
+pagination (`limit` capped at 100 via `Query(..., le=100)`). Each filter is applied
+conditionally — only `.filter(...)` if the client actually passed that param —
+and they compose (e.g. `?severity=critical&status=open` narrows by both). The
+Python parameter is named `status_` (not `status`) because `status` is already
+imported from `fastapi` for HTTP status codes elsewhere in the file; `Query(None,
+alias="status")` keeps the actual URL param spelled `?status=...` for clients —
+the underscore is purely an internal naming fix, invisible over HTTP.
+
+**Why offset-based (`skip`/`limit`) over cursor-based pagination:** cursor
+pagination (returning an opaque "next page" token) scales better under heavy
+concurrent writes, but is real added complexity for a project at this size.
+`skip`/`limit` is the standard, immediately explainable pattern and is what most
+interviewers will expect a junior/mid engineer to reach for first.
+
+**Why no response envelope (e.g. `{"total": N, "items": [...]}`)**: kept the
+response as a plain `list[IncidentOut]`, matching every other list endpoint in
+the API. Adding a total count would require a second `COUNT(*)` query on every
+list call for a number the frontend doesn't strictly need yet — can be added
+later if a real pagination UI needs it.
+
+**Verified end-to-end:** `?severity=critical` returns only critical incidents,
+`?status=open` returns only open ones, `?limit=2` caps results to 2, an invalid
+enum value (`?severity=nonsense`) → 422 with no manual validation code (Pydantic/
+FastAPI reject it automatically from the `Severity` enum type), `?limit=500` → 422
+(rejected by the `le=100` constraint).
+
+---

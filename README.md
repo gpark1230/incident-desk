@@ -2,7 +2,9 @@
 
 A backend REST API for tracking and managing security/IT incidents — think a minimal version of the incident-tracking tools SOC/IT teams use daily, built from the engineering side rather than the analyst side.
 
-**Live demo:** https://api-production-1570.up.railway.app/docs
+**Live demo:** https://api-production-1570.up.railway.app (sign up for a free-text `viewer` account, or use `/docs` below to explore the raw API)
+
+**API docs:** https://api-production-1570.up.railway.app/docs
 
 ## Why this exists
 
@@ -14,6 +16,7 @@ Every non-obvious engineering decision made while building this — including a 
 
 ## Features
 
+- **A real minimal frontend** — login/signup, a filterable incident dashboard, and a detail view with comments and the full audit trail (plain HTML/CSS/JS, no framework — see [`DECISIONS.md`](./DECISIONS.md) for why)
 - **JWT authentication** — signup, login, bcrypt password hashing
 - **Role-based access control** — `viewer` (read-only), `analyst` (create/update incidents and comments), `admin` (full control)
 - **Incident management** — create, read, filter, and update incidents (severity, status, assignment)

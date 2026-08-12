@@ -353,3 +353,46 @@ FastAPI reject it automatically from the `Severity` enum type), `?limit=500` →
 (rejected by the `le=100` constraint).
 
 ---
+
+## 2026-08-12 — pytest suite: real Postgres test DB, dependency override, per-test wipe
+
+**Decision:** Tests run against a second, real Postgres database
+(`incident_desk_test`, same server, same `incident_desk_user`) — not SQLite, not
+mocks. `tests/conftest.py` sets `DATABASE_URL`/`SECRET_KEY` env vars *before*
+anything imports `app.database` or `app.main` (since `app/config.py` reads them
+at import time), then uses FastAPI's `app.dependency_overrides[get_db] = ...` to
+point every route's `Depends(get_db)` at a session bound to the test database
+instead. An `autouse` fixture drops and recreates every table before each test
+function, so tests never see leftover data from a previous test. A `make_user`
+fixture creates `analyst`/`admin` accounts by writing directly to the test DB
+(bypassing `/auth/signup`, which can only ever create a `viewer`) — the only way
+to get a non-viewer account for testing, same limitation as the manual `psql`
+promotion used during manual testing earlier.
+
+**Why real Postgres, not SQLite for speed:** the app leans on Postgres-specific
+behavior (the `Enum` columns for role/severity/status validate against actual
+Postgres enum types). Testing against SQLite would test a database that isn't
+actually being used in production/dev — a false sense of safety. The cost is
+tests are slower and need a running Postgres server, which is an honest tradeoff
+to state in an interview, not a downside to hide.
+
+**Why drop-and-recreate tables per test, not a rollback-per-test transaction:**
+the more "correct" pattern for test isolation is wrapping each test in a
+transaction that's rolled back at the end (faster, no schema rebuild). Chose the
+simpler drop/recreate approach instead because it's easier to reason about and
+explain, and at 19 tests the extra ~10s cost doesn't matter yet. Worth switching
+to transaction-per-test if the suite grows large enough for the rebuild cost to
+become annoying.
+
+**Also fixed along the way:** all four `*Out` schemas were still using Pydantic
+v1-style `class Config: from_attributes = True`, which pytest flagged as
+deprecated (removed entirely in Pydantic v3). Swapped to
+`model_config = ConfigDict(from_attributes=True)` across `app/schemas.py`.
+
+**Coverage:** 19 tests across three files — `test_auth.py` (signup/login/`/me`
+happy paths and failures), `test_rbac.py` (viewer blocked from every write route,
+analyst/admin allowed, viewer still allowed to read), `test_incidents.py`
+(audit log entries on create/update/comment, no-op updates logging nothing,
+filtering, pagination, 404 on a missing incident). All passing.
+
+---

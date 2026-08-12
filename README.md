@@ -33,9 +33,10 @@ Every non-obvious engineering decision made while building this — including a 
 - **Comments** — threaded notes on an incident, one-to-many
 - **Append-only audit log** — every incident creation, field change, and comment is recorded with who/what/when; nothing in the API can edit or delete an audit entry
 - **Filtering & pagination** on the incident list — by status, severity, assignee, and date range
+- **Redis event stream** — incident create/update/comment actions publish a small JSON event to a Redis list, best-effort (the API keeps working fine if Redis is down — see [`DECISIONS.md`](./DECISIONS.md))
 - **19 automated tests** covering auth, RBAC enforcement, and incident/audit-log behavior, run against a real Postgres test database
 - **Alembic migrations** — schema changes are versioned, not a `create_all()` guess
-- **Dockerized**, with a `docker-compose.yml` that runs the full stack (API + Postgres) with one command
+- **Dockerized**, with a `docker-compose.yml` that runs the full stack (API + Postgres + Redis) with one command
 - **CI/CD** — GitHub Actions runs the full test suite and a Docker build check on every push; Railway auto-deploys `main` on every push (not currently gated on CI passing — see [`DECISIONS.md`](./DECISIONS.md))
 
 ## Tech stack

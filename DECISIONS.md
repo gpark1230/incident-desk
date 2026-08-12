@@ -783,3 +783,67 @@ more for a team workflow with pull requests than a solo dev pushing directly to
 known gap rather than silently left unmentioned.
 
 ---
+
+## 2026-08-12 — Publish incident events to a Redis list, best-effort
+
+**Decision:** `app/events.py` adds `publish_event(event, incident_id, user_id,
+details)`, called immediately after each `_log_audit(...)` call in
+`app/routers/incidents.py` (create, update, comment) — same three call sites,
+same `details` string reused rather than recomputed. Each call `RPUSH`s a
+small JSON payload (`event`, `incident_id`, `user_id`, `details`, UTC
+`timestamp`) onto a single Redis list, `incident_events`. `REDIS_URL` in
+`app/config.py` uses `.get()` with a `redis://localhost:6379/0` default —
+deliberately *not* the fail-fast `os.environ[...]` pattern used for
+`DATABASE_URL`/`SECRET_KEY`, because unlike those, the app must keep working
+with zero Redis at all.
+
+**"Fail silently" is a real requirement here, not a suggestion:** `publish_event`
+wraps the `RPUSH` in a bare `except Exception` (documented in the docstring as
+deliberately broad — this is one of the few places in the codebase that isn't
+narrowly scoped) and logs a warning. This must never be the reason an
+incident/comment request fails, so it's held to a stricter standard than
+"catch the errors I expect" — it has to catch *anything*, including a bug in
+this function itself, because the alternative (a broken event publisher taking
+down incident creation) is strictly worse than a silently-dropped event.
+
+**Real bug caught by actually timing it, not just testing that it doesn't
+crash:** the first version set `socket_connect_timeout=1`/`socket_timeout=1`
+and assumed that bounded the worst case. A single call with no Redis running
+actually took **9.5 seconds** — redis-py 5.x+ defaults to **10 retries with
+exponential backoff** on connection errors, and neither `socket_connect_timeout`
+nor `retry_on_timeout=False` disables that (that flag only governs retrying on
+*timeout* errors specifically; connection-refused is a different error class
+retried by a separate default `Retry` object). Running the full pytest suite
+with this bug present would have taken several minutes instead of ~20 seconds
+— multiplied across every test that touches an incident. Fixed by explicitly
+passing `retry=Retry(NoBackoff(), 0)` and `retry_on_error=[]` to disable
+retries entirely: one fast attempt, fail, move on. This dropped a single
+unreachable-Redis call from 9.5s to ~0.6s.
+
+**Verified, both ways:**
+- **Redis unreachable** (nothing running on 6379): full pytest suite — all 19
+  tests pass **unchanged**, no test file touched, in ~20s (vs. ~14s baseline;
+  the fail-fast overhead across every incident-touching test, not a hang).
+  A direct `publish_event()` call logs the warning and returns normally.
+- **Redis reachable** (a real `redis:7-alpine` container): a full
+  create → update → comment flow through the actual running API produced
+  exactly 3 correctly-ordered, correctly-detailed JSON events in the
+  `incident_events` list — confirmed with `redis-cli LRANGE`, not just "the
+  code looks right." Same suite re-run with Redis actually up: still 19
+  passed, ~13.6s (faster than without Redis, since no failed-connection
+  overhead at all).
+- Also added `redis` as a third `docker-compose.yml` service (health-checked,
+  `REDIS_URL` wired into `app`'s environment) and re-verified the exact same
+  create → update → comment → `LRANGE` flow through the full three-service
+  Compose stack, so "run it with one command" still means the whole app, not
+  just the parts that existed before this feature.
+
+**What this is *not*:** a message queue, a pub/sub channel with real
+consumers, or a guarantee of delivery — it's a plain Redis list a future
+consumer would `LPOP`/`BLPOP` from, with no retry or dead-letter handling if a
+consumer crashes mid-processing. Fine for "small feature, best-effort" as
+asked for; would need real durability guarantees (a proper queue, or Redis
+Streams with consumer groups) before anything depended on never losing an
+event.
+
+---

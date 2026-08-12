@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
 from app.database import get_db
+from app.events import publish_event
 from app.models import AuditLog, Comment, Incident, IncidentStatus, Severity, User, UserRole
 from app.schemas import AuditLogOut, CommentCreate, CommentOut, IncidentCreate, IncidentOut, IncidentUpdate
 
@@ -42,6 +43,12 @@ def create_incident(
         incident_id=incident.id,
         user_id=current_user.id,
         action="created",
+        details=f"severity: {_fmt(incident.severity)}",
+    )
+    publish_event(
+        "incident.created",
+        incident_id=incident.id,
+        user_id=current_user.id,
         details=f"severity: {_fmt(incident.severity)}",
     )
 
@@ -122,6 +129,12 @@ def update_incident(
             action="updated",
             details="; ".join(changes),
         )
+        publish_event(
+            "incident.updated",
+            incident_id=incident.id,
+            user_id=current_user.id,
+            details="; ".join(changes),
+        )
 
     db.commit()
     db.refresh(incident)
@@ -147,6 +160,12 @@ def create_comment(
         incident_id=incident_id,
         user_id=current_user.id,
         action="commented",
+        details=comment_in.body[:100],
+    )
+    publish_event(
+        "incident.commented",
+        incident_id=incident_id,
+        user_id=current_user.id,
         details=comment_in.body[:100],
     )
 

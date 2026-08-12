@@ -15,19 +15,33 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     ports:
       - "8000:8000"
     environment:
-      # "db" is the service name above -- Compose's internal DNS resolves it
-      # to the db container, on its internal port 5432 (unaffected by the
-      # 5433 host remap, which only matters for connecting from outside Compose).
+      # "db"/"redis" are the service names above -- Compose's internal DNS
+      # resolves them to their containers, on their internal ports (unaffected
+      # by the 5433 host remap on db, which only matters for connecting from
+      # outside Compose).
       DATABASE_URL: postgresql://incident_desk_user:devpassword123@db:5432/incident_desk
+      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: dev-compose-secret-change-me
       PORT: "8000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

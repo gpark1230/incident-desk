@@ -137,3 +137,57 @@ directly with valid credentials — the app-layer guarantee is real, but the DB-
 guarantee isn't built yet. That's a good answer; overclaiming it is not.
 
 ---
+
+## 2026-08-12 — Password hashing: switched from `passlib` to raw `bcrypt`
+
+**Decision:** Started with `passlib`'s `CryptContext` (the pattern in most FastAPI
+tutorials), but hit a real runtime error on the very first signup request:
+`ValueError: password cannot be longer than 72 bytes` — thrown on an 11-character
+password. Root cause: `passlib` 1.7.4 (unmaintained since 2020) runs an internal
+self-test against the installed `bcrypt` library at first use, and that self-test is
+broken against `bcrypt` 4.1+/5.x because newer `bcrypt` changed how it reports its
+version. The error message is misleading — it's not actually about password length.
+Fixed by dropping `passlib` entirely and calling `bcrypt.hashpw` / `bcrypt.checkpw`
+directly in `app/security.py`.
+
+**Why:** Rather than pin `bcrypt` down to an old compatible version (a real option —
+`bcrypt<4.1` — but a landmine for whoever upgrades dependencies later without
+knowing why), removing the abstraction that was actually broken is more durable.
+`bcrypt` alone is a thin, actively maintained library; `passlib` was only adding a
+convenience wrapper we didn't need for a single hashing scheme.
+
+**Alternatives considered:** Pin `bcrypt==4.0.x` and keep `passlib` — rejected as a
+fragile fix that just defers the same problem to the next dependency upgrade.
+
+**Interview point:** This is a good real story for "tell me about a bug you hit" —
+a misleading error message (password length) that was actually a dependency
+compatibility issue, diagnosed by reading the actual traceback instead of trusting
+the surface-level error text.
+
+---
+
+## 2026-08-12 — Auth routes: `/auth/signup`, `/auth/login`, `/auth/me`
+
+**Decision:** Login uses `OAuth2PasswordRequestForm` (form-encoded `username`/
+`password`, not JSON), per the OAuth2 spec that `python-jose` + FastAPI's security
+utilities are built around — `username` is just mapped to email here. New users
+always sign up as `role=viewer` (the model default); there is no way yet to create
+an `admin` or `analyst` through the API. `get_current_user` (from `app/auth.py`) is
+used as a `Depends(...)` on `/auth/me` to prove the full JWT round-trip works.
+
+**Why:** Following the OAuth2 password-flow spec instead of a custom JSON login body
+means the `/docs` page auto-generates a working "Authorize" button — a real, free
+recruiter-visibility win (CLAUDE.md's goal of a good `/docs` page). Defaulting
+signup to `viewer` is a deliberate security choice: privilege escalation (becoming
+`admin`) should never be self-service through a public signup endpoint.
+
+**Current limitation:** There's no `admin` user yet and no way to create one except
+by hand (e.g. `UPDATE users SET role = 'admin' WHERE id = 1;` via `psql`). A proper
+fix — either a one-time bootstrap script or an admin-only "promote user" endpoint —
+is still open and needed before RBAC-protected admin routes can be tested end to end.
+
+**Verified end-to-end (manual curl testing):** signup → 201, login → JWT, `/auth/me`
+with valid token → 200 with correct user, `/auth/me` with missing/garbage token →
+401, duplicate signup email → 400, wrong password on login → 401.
+
+---

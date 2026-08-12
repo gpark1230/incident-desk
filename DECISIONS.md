@@ -191,3 +191,58 @@ with valid token → 200 with correct user, `/auth/me` with missing/garbage toke
 401, duplicate signup email → 400, wrong password on login → 401.
 
 ---
+
+## 2026-08-12 — RBAC enforcement via a `require_role(...)` dependency factory
+
+**Decision:** `app/auth.py` adds `require_role(*allowed_roles)`, a function that
+*returns* a FastAPI dependency rather than being one itself. Routes use it as
+`Depends(require_role(UserRole.analyst, UserRole.admin))`. Internally it first
+resolves `get_current_user` (so the token is already verified), then checks
+`current_user.role` against the roles passed in; anything else raises 403.
+
+**Why:** This keeps the RBAC rule sitting directly on each route's signature —
+reading `app/routers/incidents.py`, you can see exactly who's allowed to hit each
+endpoint without reading any function body. It's also the same dependency-injection
+pattern already used for `get_current_user` and `get_db`, so there's only one
+mental model for "things that gate a route," not a second, different mechanism for
+roles specifically.
+
+**Alternatives considered:** An `if current_user.role != "admin": raise ...` check
+written manually inside each route body — rejected because it's easy to forget on
+a new route, and duplicates the same check everywhere. A factory function
+declared once and reused is the more standard FastAPI pattern.
+
+**Interview point:** Can explain the difference between a dependency and a
+dependency *factory* — `Depends(get_current_user)` vs. `Depends(require_role(...))`
+— and why the extra layer of function-returning-a-function is needed here (the
+allowed roles differ per route, so the dependency itself needs to be parameterized).
+
+---
+
+## 2026-08-12 — Incident routes: PATCH for updates, all roles can read
+
+**Decision:** `POST /incidents` and `PATCH /incidents/{id}` require
+`analyst` or `admin` (via `require_role`). `GET /incidents` and
+`GET /incidents/{id}` only require a valid logged-in user (`get_current_user`,
+no role check) — so `viewer` accounts can read but never write. There is no
+separate "close incident" endpoint; closing is just
+`PATCH {"status": "closed"}`, using the same partial-update route as any other
+field change.
+
+**Why:** Matches CLAUDE.md's RBAC spec directly (viewer = read-only, analyst =
+create/update, admin = full control) with the fewest routes possible. A dedicated
+`/incidents/{id}/close` endpoint would just be a worse-typed version of the PATCH
+route that already exists — one more thing to maintain for no real behavior
+difference.
+
+**Verified end-to-end (manual curl testing with real viewer/analyst/admin
+accounts, roles promoted by hand via `psql` since there's still no admin-management
+endpoint):** viewer `POST` → 403, analyst `POST` → 201, viewer `GET` (list and by
+id) → 200, viewer `PATCH` → 403, admin `PATCH` (status → `closed`) → 200 with the
+status actually updated, `GET` on a nonexistent id → 404.
+
+**Still open:** audit log isn't wired to these routes yet — `PATCH`ing an
+incident's status right now leaves no record of who changed what or when. That's
+the next milestone.
+
+---

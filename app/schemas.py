@@ -54,6 +54,21 @@ class IncidentOut(BaseModel):
         from_attributes = True
 
 
+class CommentCreate(BaseModel):
+    body: str
+
+
+class CommentOut(BaseModel):
+    id: int
+    incident_id: int
+    author_id: int
+    body: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class AuditLogOut(BaseModel):
     id: int
     incident_id: int

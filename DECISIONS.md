@@ -290,3 +290,34 @@ that can update or delete an `AuditLog` row.
 `/audit-log` as a viewer → 200 with the full, correctly-ordered trail.
 
 ---
+
+## 2026-08-12 — Comments: nested under incidents, gated the same as incident writes, feed the audit log
+
+**Decision:** `POST /incidents/{id}/comments` and `GET /incidents/{id}/comments`
+live on the same router (`app/routers/incidents.py`), not a separate
+`app/routers/comments.py`. Posting a comment requires `analyst`/`admin`
+(same `require_role` gate as incident writes); reading requires only a logged-in
+user. Posting a comment also writes an `AuditLog` row (`action="commented"`),
+with `details` truncated to the first 100 characters of the comment body — the
+full text lives in the `comments` table, the audit row just needs to say
+*that* a comment happened and roughly what it said.
+
+**Why routed together:** a comment doesn't exist independently of an incident —
+every comment route needs the `incident_id` from the URL path anyway
+(`/incidents/{id}/comments`), so splitting it into its own router file would mean
+importing `Incident` there too just to do the same "does this incident exist"
+404 check. Keeping it in `incidents.py` matches the actual dependency, not an
+arbitrary one-file-per-model rule.
+
+**Why comments feed the audit log too:** CLAUDE.md's audit log spec is "every
+state change on an incident" — a comment is part of the incident's timeline
+(an analyst leaving investigation notes), so it belongs in the same trail as
+severity/status changes, not off in a silo you'd have to check separately to
+get the full picture of "what happened to this incident."
+
+**Verified end-to-end:** viewer `POST` comment → 403, analyst `POST` → 201,
+viewer `GET` comments → 200 (can read, can't write), audit log picks up the
+comment automatically as a `commented` entry right after `created`, `POST`
+comment on a nonexistent incident id → 404.
+
+---

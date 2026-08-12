@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
 from app.database import get_db
-from app.models import AuditLog, Incident, User, UserRole
-from app.schemas import AuditLogOut, IncidentCreate, IncidentOut, IncidentUpdate
+from app.models import AuditLog, Comment, Incident, User, UserRole
+from app.schemas import AuditLogOut, CommentCreate, CommentOut, IncidentCreate, IncidentOut, IncidentUpdate
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -100,6 +100,51 @@ def update_incident(
     db.commit()
     db.refresh(incident)
     return incident
+
+
+@router.post("/{incident_id}/comments", response_model=CommentOut, status_code=status.HTTP_201_CREATED)
+def create_comment(
+    incident_id: int,
+    comment_in: CommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.analyst, UserRole.admin)),
+):
+    incident = db.get(Incident, incident_id)
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    comment = Comment(incident_id=incident_id, author_id=current_user.id, body=comment_in.body)
+    db.add(comment)
+
+    _log_audit(
+        db,
+        incident_id=incident_id,
+        user_id=current_user.id,
+        action="commented",
+        details=comment_in.body[:100],
+    )
+
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
+@router.get("/{incident_id}/comments", response_model=list[CommentOut])
+def list_comments(
+    incident_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    incident = db.get(Incident, incident_id)
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    return (
+        db.query(Comment)
+        .filter(Comment.incident_id == incident_id)
+        .order_by(Comment.created_at.asc())
+        .all()
+    )
 
 
 @router.get("/{incident_id}/audit-log", response_model=list[AuditLogOut])

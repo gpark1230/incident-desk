@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IncidentDesk</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav id="navbar" class="hidden">
+  <div class="brand">Incident<span>Desk</span></div>
+  <div class="user-info">
+    <span id="nav-email"></span>
+    <span id="nav-role" class="role-badge"></span>
+    <button id="logout-btn" class="btn-secondary">Log out</button>
+  </div>
+</nav>
+
+<!-- LOGIN -->
+<div id="login-view" class="center-page">
+  <div class="card auth-card">
+    <h1>IncidentDesk</h1>
+    <p class="subtitle">Security incident tracking</p>
+    <div id="login-error" class="error hidden"></div>
+    <form id="login-form">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" required>
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" required>
+      <button type="submit" class="btn-primary btn-full">Log in</button>
+    </form>
+    <p style="margin-top:16px; font-size:0.85rem; color:var(--text-muted);">
+      No account? <button class="btn-link" id="show-signup">Sign up</button>
+    </p>
+  </div>
+</div>
+
+<!-- SIGNUP -->
+<div id="signup-view" class="center-page hidden">
+  <div class="card auth-card">
+    <h1>Create account</h1>
+    <p class="subtitle">New accounts start as read-only viewers</p>
+    <div id="signup-error" class="error hidden"></div>
+    <form id="signup-form">
+      <label for="signup-email">Email</label>
+      <input type="email" id="signup-email" required>
+      <label for="signup-password">Password</label>
+      <input type="password" id="signup-password" required minlength="8">
+      <button type="submit" class="btn-primary btn-full">Sign up</button>
+    </form>
+    <p style="margin-top:16px; font-size:0.85rem; color:var(--text-muted);">
+      Already have an account? <button class="btn-link" id="show-login">Log in</button>
+    </p>
+  </div>
+</div>
+
+<!-- INCIDENT LIST -->
+<div id="incidents-view" class="page hidden">
+  <div class="toolbar">
+    <div class="filter-group">
+      <label for="filter-status">Status</label>
+      <select id="filter-status">
+        <option value="">All</option>
+        <option value="open">Open</option>
+        <option value="investigating">Investigating</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-severity">Severity</label>
+      <select id="filter-severity">
+        <option value="">All</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <button id="new-incident-btn" class="btn-primary hidden">+ New Incident</button>
+  </div>
+  <div id="incidents-list" class="incident-grid"></div>
+</div>
+
+<!-- INCIDENT DETAIL -->
+<div id="detail-view" class="page hidden">
+  <a href="#" id="back-to-list" class="back-link">&larr; Back to incidents</a>
+
+  <div class="card">
+    <div class="detail-header">
+      <div>
+        <h2 id="detail-title"></h2>
+        <div class="detail-meta" id="detail-meta"></div>
+      </div>
+      <div class="badges">
+        <span id="detail-severity-badge" class="badge"></span>
+        <span id="detail-status-badge" class="badge"></span>
+      </div>
+    </div>
+    <p id="detail-description" style="color:var(--text-muted); font-size:0.9rem;"></p>
+
+    <div id="status-control" class="status-control hidden">
+      <label style="margin:0;">Update status:</label>
+      <select id="status-select">
+        <option value="open">Open</option>
+        <option value="investigating">Investigating</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+      <button id="status-save-btn" class="btn-secondary">Save</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Comments</div>
+    <div id="comments-list"></div>
+    <form id="comment-form" class="hidden" style="margin-top:14px;">
+      <textarea id="comment-body" placeholder="Add a comment..." required></textarea>
+      <button type="submit" class="btn-primary" style="margin-top:8px;">Post comment</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Audit trail</div>
+    <div id="audit-list"></div>
+  </div>
+</div>
+
+<!-- NEW INCIDENT MODAL -->
+<div id="create-modal-backdrop" class="modal-backdrop hidden">
+  <div class="card modal">
+    <div class="modal-header">
+      <h3>New incident</h3>
+      <button id="close-modal-btn">&times;</button>
+    </div>
+    <div id="create-error" class="error hidden"></div>
+    <form id="create-form">
+      <label for="create-title">Title</label>
+      <input type="text" id="create-title" required>
+      <label for="create-description">Description</label>
+      <textarea id="create-description"></textarea>
+      <label for="create-severity">Severity</label>
+      <select id="create-severity">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+      <button type="submit" class="btn-primary btn-full">Create incident</button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

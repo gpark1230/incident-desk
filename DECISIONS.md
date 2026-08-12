@@ -436,3 +436,59 @@ password hashing, JWT signing/verification — works against the actual deployed
 instance, not just locally.
 
 ---
+
+## 2026-08-12 — Added a minimal frontend: plain HTML/CSS/JS, no framework, no build step
+
+**Decision:** After asking what "make the live demo look nicer" should mean (a
+Swagger docs polish pass vs. a static landing page vs. a real frontend), a real
+minimal frontend was chosen — login/signup, an incident list with filters, and an
+incident detail view (comments + audit trail), all calling the existing API.
+Built as one static HTML page (`app/static/index.html`) with vanilla JS
+(`app/static/app.js`) doing view-switching by toggling CSS classes — no React/Vue,
+no npm, no build step. Served by FastAPI itself: `StaticFiles` mounted at
+`/static`, and a `GET /` route returns `index.html` directly
+(`include_in_schema=False` so it doesn't clutter the OpenAPI docs, which are still
+the "real" API reference at `/docs`).
+
+**Why no framework:** this project's stated purpose (per this file, above) is a
+*backend* portfolio piece, and Gavin's learning history has no JS framework
+experience yet. A framework would add a build toolchain (npm/vite/webpack) that's
+a whole separate thing to learn and explain in an interview, for a UI that's
+fundamentally simple (a login form, a list, a detail page). Plain JS keeps the
+addition explainable and scoped, and — practically — same-origin serving from
+FastAPI means zero CORS configuration was needed.
+
+**Security note worth being precise about in an interview:** the frontend hides
+the "New Incident" button and comment form for `viewer` accounts
+(`canWrite()` checks `currentUser.role`), but that is a **UX convenience, not a
+security boundary** — the real enforcement is still 100% server-side
+(`require_role(...)` in `app/routers/incidents.py`, unchanged by this work). A
+viewer who opened devtools and called the API directly would still get a real 403,
+exactly as before. The frontend hiding a button and the backend rejecting the
+request are two different, independently-necessary things — don't confuse "the
+button is hidden" with "the action is prevented."
+
+**JWT storage tradeoff, stated honestly:** the token is stored in
+`localStorage`, which is simple and persists across page reloads, but is
+readable by any JavaScript that runs on the page — meaning an XSS vulnerability
+elsewhere on the same page could steal it. An httpOnly cookie would be safer
+against that specific attack but requires the backend to set/manage the cookie
+and adds CSRF considerations. `localStorage` was chosen deliberately for
+simplicity at this project's stage — worth naming as a known tradeoff, not an
+oversight, if asked "how would you harden this?"
+
+**Also fixed along the way:** `@app.on_event("startup")` (used for the
+`create_all()` table-creation stand-in) is deprecated in current FastAPI in favor
+of the `lifespan` context-manager pattern. Swapped to
+`@asynccontextmanager async def lifespan(app): ...; yield` passed to
+`FastAPI(lifespan=lifespan)`, which also cleared a pytest deprecation warning.
+
+**Verified:** all 19 backend tests still pass unchanged (frontend work touched
+`app/main.py` only to mount static files and add the `/` route — no route
+behavior changed). Visually verified locally using headless Chrome screenshots
+(no interactive browser tool was available this session) — login view, and a
+fully authenticated dashboard + detail view driven by a real login token and real
+data from the dev database, confirming badges, cards, and the audit trail render
+correctly end to end, not just that the HTML is well-formed.
+
+---

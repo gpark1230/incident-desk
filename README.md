@@ -2,7 +2,7 @@
 
 A backend REST API for tracking and managing security/IT incidents — think a minimal version of the incident-tracking tools SOC/IT teams use daily, built from the engineering side rather than the analyst side.
 
-**Live demo:** _deploying — link coming shortly_
+**Live demo:** https://api-production-1570.up.railway.app/docs
 
 ## Why this exists
 

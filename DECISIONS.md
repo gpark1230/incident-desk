@@ -396,3 +396,43 @@ analyst/admin allowed, viewer still allowed to read), `test_incidents.py`
 filtering, pagination, 404 on a missing incident). All passing.
 
 ---
+
+## 2026-08-12 — Deployment: Railway, two services (Postgres + api), no Dockerfile
+
+**Decision:** Deployed to Railway rather than Render or Fly.io — one project with
+two services: a managed Postgres addon and an `api` service deployed straight from
+this local repo via `railway up` (not yet GitHub-connected for auto-deploy on
+push — that's a natural next step, not done today). Railway's own builder
+(Railpack) detects Python from `requirements.txt` and needs a `Procfile` to know
+how to start the app: `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+`$PORT` is injected by Railway at runtime — the app doesn't hardcode a port.
+`DATABASE_URL` on the `api` service is set to Railway's own variable-reference
+syntax `${{Postgres.DATABASE_URL}}`, so the real connection string (including its
+password) is never typed into a command, a file, or this log — Railway resolves
+it internally between services. `SECRET_KEY` is a freshly generated random value
+(`secrets.token_urlsafe(48)`), set only as an environment variable on Railway,
+never committed — completely different from the `changeme` placeholder in
+`.env.example`.
+
+**Why Railway over Render/Fly.io:** fastest path to a working FastAPI + Postgres
+deploy from the CLI with the least new configuration (no Dockerfile needed, unlike
+Fly.io). Render was the other close option; picked mainly for CLI speed today —
+worth trying Render too later since CLAUDE.md's roadmap treats the PaaS choice as
+non-final.
+
+**Real gap, said plainly:** there's no Alembic migration setup yet. `app/main.py`
+runs `Base.metadata.create_all(bind=engine)` on every startup as a stand-in —
+fine for creating tables that don't exist yet, but it does **not** handle
+altering an existing column or table safely. This is acceptable for a project
+with no real users yet; it would not be acceptable once there's production data
+a schema change could silently fail to migrate. Real migrations (Alembic) are
+the next infrastructure milestone before this app is treated as "production."
+
+**Verified end-to-end against the live deployment (not just health check):**
+`POST /auth/signup` → 201 and a real row written to the live Postgres instance,
+`POST /auth/login` → real JWT, `GET /auth/me` with that token → 200 with the
+correct user, `GET /docs` → 200. The full stack — build, deploy, DB connection,
+password hashing, JWT signing/verification — works against the actual deployed
+instance, not just locally.
+
+---

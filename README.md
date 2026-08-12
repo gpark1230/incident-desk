@@ -1,0 +1,108 @@
+# IncidentDesk
+
+A backend REST API for tracking and managing security/IT incidents — think a minimal version of the incident-tracking tools SOC/IT teams use daily, built from the engineering side rather than the analyst side.
+
+**Live demo:** _deploying — link coming shortly_
+
+## Why this exists
+
+I work as an IT Operations and Security Associate, where a large part of my day is triaging alerts (CrowdStrike, ticketing systems), documenting incidents, and tracking who did what and when for compliance purposes. I built IncidentDesk to work through the same problem from the other side of the tool — designing the data model, the authorization rules, and the audit trail that make that kind of system trustworthy, instead of just using one.
+
+It's deliberately not a generic CRUD/todo app: it has real relational complexity (incidents → comments, incidents → audit log), real authorization logic beyond "logged in or not," and an append-only audit trail modeled on real SOC/compliance tooling patterns.
+
+Every non-obvious engineering decision made while building this — including a couple of real bugs hit and fixed along the way — is written up in [`DECISIONS.md`](./DECISIONS.md).
+
+## Features
+
+- **JWT authentication** — signup, login, bcrypt password hashing
+- **Role-based access control** — `viewer` (read-only), `analyst` (create/update incidents and comments), `admin` (full control)
+- **Incident management** — create, read, filter, and update incidents (severity, status, assignment)
+- **Comments** — threaded notes on an incident, one-to-many
+- **Append-only audit log** — every incident creation, field change, and comment is recorded with who/what/when; nothing in the API can edit or delete an audit entry
+- **Filtering & pagination** on the incident list — by status, severity, assignee, and date range
+- **19 automated tests** covering auth, RBAC enforcement, and incident/audit-log behavior, run against a real Postgres test database
+
+## Tech stack
+
+- **FastAPI** — routing, request validation, auto-generated OpenAPI docs
+- **PostgreSQL** + **SQLAlchemy ORM** — data layer
+- **JWT** (`python-jose`) + **bcrypt** — authentication
+- **pytest** — test suite
+
+## Sample request/response
+
+Every incident change is captured automatically — here's what closing an incident looks like from the audit trail:
+
+```
+$ curl -X PATCH https://api.example.com/incidents/3 \
+    -H "Authorization: Bearer <analyst-or-admin-token>" \
+    -H "Content-Type: application/json" \
+    -d '{"status": "closed"}'
+
+{
+  "id": 3,
+  "title": "Ransomware alert from CrowdStrike",
+  "severity": "critical",
+  "status": "closed",
+  "assigned_to_id": 3,
+  "created_by_id": 3,
+  "created_at": "2026-08-12T11:25:56.302188-04:00",
+  "updated_at": "2026-08-12T11:25:56.358562-04:00"
+}
+
+$ curl https://api.example.com/incidents/3/audit-log \
+    -H "Authorization: Bearer <any-authenticated-token>"
+
+[
+  { "action": "created", "details": "severity: critical", ... },
+  { "action": "updated", "details": "status: open -> closed; assigned_to_id: None -> 3", ... }
+]
+```
+
+Full interactive API docs (Swagger UI) are available at `/docs` on any running instance.
+
+## Running it locally
+
+**Prerequisites:** Python 3.11+, PostgreSQL running locally.
+
+```bash
+git clone https://github.com/gpark1230/incident-desk.git
+cd incident-desk
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+createdb incident_desk
+cp .env.example .env   # then edit DATABASE_URL / SECRET_KEY as needed
+
+python -c "from app.database import Base, engine; from app import models; Base.metadata.create_all(bind=engine)"
+
+uvicorn app.main:app --reload
+```
+
+Then open **http://localhost:8000/docs** for the interactive API explorer.
+
+## Running the tests
+
+Tests run against a second, real Postgres database (not mocks or SQLite — the app relies on real Postgres `Enum` behavior for role/severity/status).
+
+```bash
+createdb incident_desk_test
+python -m pytest tests/ -v
+```
+
+## API overview
+
+| Method | Route | Access |
+|---|---|---|
+| `POST` | `/auth/signup` | Public (always creates a `viewer`) |
+| `POST` | `/auth/login` | Public |
+| `GET` | `/auth/me` | Any authenticated user |
+| `GET` | `/incidents` | Any authenticated user (filterable, paginated) |
+| `POST` | `/incidents` | `analyst`, `admin` |
+| `GET` | `/incidents/{id}` | Any authenticated user |
+| `PATCH` | `/incidents/{id}` | `analyst`, `admin` |
+| `GET` | `/incidents/{id}/comments` | Any authenticated user |
+| `POST` | `/incidents/{id}/comments` | `analyst`, `admin` |
+| `GET` | `/incidents/{id}/audit-log` | Any authenticated user |

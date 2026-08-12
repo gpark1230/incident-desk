@@ -1,5 +1,7 @@
 # IncidentDesk
 
+[![CI](https://github.com/gpark1230/incident-desk/actions/workflows/ci.yml/badge.svg)](https://github.com/gpark1230/incident-desk/actions/workflows/ci.yml)
+
 A backend REST API for tracking and managing security/IT incidents — think a minimal version of the incident-tracking tools SOC/IT teams use daily, built from the engineering side rather than the analyst side.
 
 **Live demo:** https://api-production-1570.up.railway.app — pre-loaded with realistic sample incidents (varied severity/status, comments, full audit trails) so it's not an empty screen on first visit.

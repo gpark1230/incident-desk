@@ -48,21 +48,24 @@ He explicitly chose to have this project built collaboratively/primarily by Clau
 
 ## Status
 
-As of Aug 12, 2026, all core features from this file are built, tested, and deployed live:
+As of Aug 12, 2026, all core features from this file are built, tested, and deployed live, plus a full infra layer (Alembic, Docker, CI/CD) on top:
 
-- Auth (JWT signup/login/`/auth/me`), RBAC (`viewer`/`analyst`/`admin`), append-only audit log, comments, filtering/pagination on the incident list — all done, all with real curl/pytest verification, not just "looks right."
-- 19 pytest tests (auth, RBAC enforcement, incident/audit-log behavior) run against a real second Postgres DB, not mocks. All passing.
+- Auth (JWT signup/login/`/auth/me`), RBAC (`viewer`/`analyst`/`admin`), append-only audit log, comments, filtering/pagination on the incident list, a real minimal frontend (plain HTML/CSS/JS) — all done, all with real curl/pytest/screenshot verification, not just "looks right."
+- 19 pytest tests (auth, RBAC enforcement, incident/audit-log behavior) run against a real second Postgres DB, not mocks. All passing, in CI too.
+- **Alembic migrations** replace `Base.metadata.create_all()` entirely — schema is versioned, not guessed at startup.
+- **Dockerized**: `Dockerfile` + `docker-compose.yml` (API + real Postgres, one command, verified end to end via Colima since Docker Desktop wasn't available in-session).
+- **CI**: GitHub Actions runs the full test suite (against a real Postgres service container) and a Docker build check on every push. **CD**: Railway auto-deploys `main` on push (native GitHub integration, not scripted).
 - Public GitHub repo with real incremental commit history: https://github.com/gpark1230/incident-desk
-- README with rationale, setup instructions, sample request/response, and API table.
-- Live deploy on Railway: https://api-production-1570.up.railway.app/docs
-- Full build reasoning — every non-trivial decision, alternative considered, and bug hit along the way (including a real passlib/bcrypt incompatibility) — is in [`DECISIONS.md`](./DECISIONS.md), not just this file.
+- README with rationale, setup instructions (Docker Compose *and* plain Python), sample request/response, and API table.
+- Live deploy on Railway: https://api-production-1570.up.railway.app — pre-loaded with realistic demo incidents (not an empty screen on first visit), with published demo analyst/admin credentials so visitors can test write actions themselves.
+- Full build reasoning — every non-trivial decision, alternative considered, and bug/incident hit along the way — is in [`DECISIONS.md`](./DECISIONS.md), not just this file. This includes two real *incidents*, not just bugs: a git ref corruption from iCloud syncing `~/Desktop` (see below), and a brief production outage caused by Railway auto-switching build methods when a Dockerfile was added.
+
+**⚠️ Environment note, read this first in future sessions:** this project lives on `~/Desktop`, which iCloud Drive syncs by default on this Mac. That has caused two real incidents this session — a stray duplicate file (`incidents 2.py`) and, worse, actual git ref corruption (`.git/refs/heads/main` renamed to `main 2` mid-write, requiring manual recovery — see `DECISIONS.md`). **Recommend moving this project outside `~/Desktop`** (e.g. `~/Projects/incident-desk`) or disabling iCloud Desktop sync for it. Until that happens, treat any "no commits yet" / "refspec does not match" git error as a likely iCloud ref-naming issue first, not assume history was lost — check `.git/refs/heads/` for a `main 2`-style file before doing anything destructive.
 
 **Known gaps, honestly stated (good "what would you do next" interview answers):**
 
-- No Alembic migrations — `app/main.py` calls `Base.metadata.create_all()` on startup as a stand-in. Fine with no real data yet; not a substitute for real migrations once there is.
-- No admin-promotion endpoint — the only way to create an `analyst`/`admin` account is direct DB access (`psql` or, in tests, a fixture that bypasses the API). Signup can only ever create a `viewer`, by design, but there's no in-API path to promote someone either.
-- Railway `api` service deploys via `railway up` from the local CLI, not GitHub-connected auto-deploy on push — pushing to `main` does not currently redeploy the live instance.
-- No Docker/CI-CD yet (planned as a later phase per the Tech stack section above, not blocking).
-- No screenshot/GIF of `/docs` in the README yet — a sample request/response was used instead since no browser/screenshot tooling was available in the build session.
+- No admin-promotion endpoint — the only way to create an `analyst`/`admin` account is direct DB access (`psql` locally, `railway ssh` in production, or in tests a fixture that bypasses the API). Signup can only ever create a `viewer`, by design, but there's no in-API path to promote someone either.
+- Railway's auto-deploy is **not gated on GitHub Actions CI passing** — a push to `main` that fails tests will still deploy. Fixing this properly means a PR-based workflow with a branch protection rule requiring the CI check, which matters more for a team than a solo dev pushing straight to `main` (this project's actual workflow) — noted as a real gap, not silently ignored.
+- No screenshot/GIF of `/docs` in the README yet — a sample request/response was used instead since no interactive browser tool was available in the build session (headless Chrome screenshots were used for one-off frontend verification, but not wired into the README as an image).
 
 Update this file as the project progresses — milestones hit, real decisions made, bugs solved worth remembering for the interview narrative. Treat this file as the persistent memory of the project across every future Claude Code session here.

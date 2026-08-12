@@ -32,13 +32,18 @@ Every non-obvious engineering decision made while building this — including a 
 - **Append-only audit log** — every incident creation, field change, and comment is recorded with who/what/when; nothing in the API can edit or delete an audit entry
 - **Filtering & pagination** on the incident list — by status, severity, assignee, and date range
 - **19 automated tests** covering auth, RBAC enforcement, and incident/audit-log behavior, run against a real Postgres test database
+- **Alembic migrations** — schema changes are versioned, not a `create_all()` guess
+- **Dockerized**, with a `docker-compose.yml` that runs the full stack (API + Postgres) with one command
+- **CI/CD** — GitHub Actions runs the full test suite and a Docker build check on every push; Railway auto-deploys `main` on every push (not currently gated on CI passing — see [`DECISIONS.md`](./DECISIONS.md))
 
 ## Tech stack
 
 - **FastAPI** — routing, request validation, auto-generated OpenAPI docs
 - **PostgreSQL** + **SQLAlchemy ORM** — data layer
+- **Alembic** — database migrations
 - **JWT** (`python-jose`) + **bcrypt** — authentication
 - **pytest** — test suite
+- **Docker** + **GitHub Actions** — containerized, tested and built on every push
 
 ## Sample request/response
 
@@ -74,6 +79,19 @@ Full interactive API docs (Swagger UI) are available at `/docs` on any running i
 
 ## Running it locally
 
+### Option A: Docker Compose (fastest — no local Python/Postgres needed)
+
+```bash
+git clone https://github.com/gpark1230/incident-desk.git
+cd incident-desk
+docker compose up
+```
+
+That's it — API + Postgres both running, migrations applied automatically on
+boot. Open **http://localhost:8000/docs**.
+
+### Option B: Plain Python + local Postgres
+
 **Prerequisites:** Python 3.11+, PostgreSQL running locally.
 
 ```bash
@@ -87,12 +105,18 @@ pip install -r requirements.txt
 createdb incident_desk
 cp .env.example .env   # then edit DATABASE_URL / SECRET_KEY as needed
 
-python -c "from app.database import Base, engine; from app import models; Base.metadata.create_all(bind=engine)"
+alembic upgrade head
 
 uvicorn app.main:app --reload
 ```
 
 Then open **http://localhost:8000/docs** for the interactive API explorer.
+
+## Database migrations
+
+Schema is managed by Alembic, not a `create_all()` guess. To change the schema:
+edit `app/models.py`, then `alembic revision --autogenerate -m "description"`,
+review the generated file in `alembic/versions/`, then `alembic upgrade head`.
 
 ## Running the tests
 

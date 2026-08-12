@@ -48,4 +48,21 @@ He explicitly chose to have this project built collaboratively/primarily by Clau
 
 ## Status
 
-Not started as of Aug 12, 2026. Update this file as the project progresses — milestones hit, real decisions made, bugs solved worth remembering for the interview narrative. Treat this file as the persistent memory of the project across every future Claude Code session here.
+As of Aug 12, 2026, all core features from this file are built, tested, and deployed live:
+
+- Auth (JWT signup/login/`/auth/me`), RBAC (`viewer`/`analyst`/`admin`), append-only audit log, comments, filtering/pagination on the incident list — all done, all with real curl/pytest verification, not just "looks right."
+- 19 pytest tests (auth, RBAC enforcement, incident/audit-log behavior) run against a real second Postgres DB, not mocks. All passing.
+- Public GitHub repo with real incremental commit history: https://github.com/gpark1230/incident-desk
+- README with rationale, setup instructions, sample request/response, and API table.
+- Live deploy on Railway: https://api-production-1570.up.railway.app/docs
+- Full build reasoning — every non-trivial decision, alternative considered, and bug hit along the way (including a real passlib/bcrypt incompatibility) — is in [`DECISIONS.md`](./DECISIONS.md), not just this file.
+
+**Known gaps, honestly stated (good "what would you do next" interview answers):**
+
+- No Alembic migrations — `app/main.py` calls `Base.metadata.create_all()` on startup as a stand-in. Fine with no real data yet; not a substitute for real migrations once there is.
+- No admin-promotion endpoint — the only way to create an `analyst`/`admin` account is direct DB access (`psql` or, in tests, a fixture that bypasses the API). Signup can only ever create a `viewer`, by design, but there's no in-API path to promote someone either.
+- Railway `api` service deploys via `railway up` from the local CLI, not GitHub-connected auto-deploy on push — pushing to `main` does not currently redeploy the live instance.
+- No Docker/CI-CD yet (planned as a later phase per the Tech stack section above, not blocking).
+- No screenshot/GIF of `/docs` in the README yet — a sample request/response was used instead since no browser/screenshot tooling was available in the build session.
+
+Update this file as the project progresses — milestones hit, real decisions made, bugs solved worth remembering for the interview narrative. Treat this file as the persistent memory of the project across every future Claude Code session here.

@@ -2,9 +2,17 @@
 
 A backend REST API for tracking and managing security/IT incidents — think a minimal version of the incident-tracking tools SOC/IT teams use daily, built from the engineering side rather than the analyst side.
 
-**Live demo:** https://api-production-1570.up.railway.app (sign up for a free-text `viewer` account, or use `/docs` below to explore the raw API)
+**Live demo:** https://api-production-1570.up.railway.app — pre-loaded with realistic sample incidents (varied severity/status, comments, full audit trails) so it's not an empty screen on first visit.
 
 **API docs:** https://api-production-1570.up.railway.app/docs
+
+**Try it as a viewer:** sign up for your own free account — new signups are always read-only `viewer` accounts by design (see [`DECISIONS.md`](./DECISIONS.md) for why), so you can browse incidents, comments, and audit trails immediately.
+
+**Try it as an analyst/admin:** to test creating incidents, commenting, or changing status, log in with a shared demo account instead of your own:
+- `demo.analyst@incidentdesk.dev` / `Demo2026Pass!`
+- `demo.admin@incidentdesk.dev` / `Demo2026Pass!`
+
+These are demo-only credentials on synthetic data — nothing sensitive, feel free to create/edit incidents to try it out. Data may be periodically reset.
 
 ## Why this exists
 

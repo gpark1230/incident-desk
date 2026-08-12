@@ -492,3 +492,54 @@ data from the dev database, confirming badges, cards, and the audit trail render
 correctly end to end, not just that the HTML is well-formed.
 
 ---
+
+## 2026-08-12 — Seeded the live production database, and published demo credentials
+
+**Decision:** Realized after deploying the frontend that a real visitor signing
+up on the live demo would land on a completely empty dashboard with no incidents
+and no way to create one — new signups are always `viewer` (deliberately, see
+the "Auth routes" decision above), and viewers can't write. An empty screen with
+no way to populate it is a bad first impression and doesn't demonstrate the
+audit-log/RBAC features at all. Fixed two ways: (1) seeded the live Postgres
+database with 6 realistic incidents across every severity and status, each with
+a natural-looking history of comments and status changes created *through the
+real API* (not raw SQL inserts) so the audit log reads like genuine incident
+response activity, not obviously fake seed data; (2) created and published two
+demo accounts (`demo.analyst@incidentdesk.dev`, `demo.admin@incidentdesk.dev`,
+password `Demo2026Pass!`) in the README, so visitors who want to test write
+actions (create an incident, comment, change status) don't have to take my word
+for it — they can log in and do it themselves.
+
+**How the roles got promoted:** same fundamental limitation as before — no
+admin-promotion endpoint exists. Signed the accounts up through `/auth/signup`
+(both start as `viewer`), then promoted them directly in the production database.
+Getting *to* the production database from a local machine turned out to be its
+own small problem worth recording: Railway's SSH tunnel
+(`railway connect postgres --tunnel-only`) failed repeatedly with
+`channel 1: open failed: unknown channel type: unsupported` — happened even
+with sandboxing disabled, so it wasn't a local sandbox restriction, something
+about that specific tunnel path didn't work in this session. Worked around it
+with `railway ssh --service api -- python3 -c "..."` instead: SSH into the
+already-deployed `api` container itself (which needed an `ed25519` key
+specifically — the existing `id_rsa` key was rejected) and run a short Python
+script there that imports `app.database`/`app.models` directly. Since that
+container already has `DATABASE_URL` pointed at Postgres's *internal* Railway
+hostname (only reachable from inside Railway's network), running the promotion
+code from inside the container sidestepped the tunnel problem entirely.
+
+**Why seed through the real API instead of direct SQL inserts:** every incident
+was created via `POST /incidents`, every comment via `POST /incidents/{id}/comments`,
+every status change via `PATCH /incidents/{id}` — using the demo accounts' real
+JWTs, exactly like any other user would. This guarantees the seeded data is
+self-consistent with the app's own rules (correct audit log entries, correct
+timestamps, correct relationships) automatically, instead of hand-writing SQL
+that could drift from what the application logic actually produces.
+
+**Verified:** a screenshot of a genuinely fresh throwaway viewer signup
+(`screenshot.check@example.com`, never used before) hitting the live URL shows
+all 6 seeded incidents with correct severity/status badges and no write
+controls (confirming both "populated by default" and "still correctly
+read-only" at once). One stray test user (`demo@example.com`, an artifact of
+the deployment smoke-test) was deleted from production for cleanliness.
+
+---

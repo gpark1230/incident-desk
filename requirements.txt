@@ -1,6 +1,9 @@
+Mako==1.4.1
+MarkupSafe==3.0.3
 PyYAML==6.0.3
 Pygments==2.20.0
 SQLAlchemy==2.0.52
+alembic==1.19.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2

@@ -1,26 +1,18 @@
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
 from app.routers import auth, incidents
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # No Alembic migrations yet -- this is a stand-in that creates any missing
-    # tables on boot. Fine for a first deploy; a real migration tool is needed
-    # before this app ever has data worth not losing on a schema change.
-    Base.metadata.create_all(bind=engine)
-    yield
-
-
-app = FastAPI(title="IncidentDesk API", lifespan=lifespan)
+# Schema is now owned by Alembic migrations (see alembic/), run via
+# `alembic upgrade head` before the app starts (Procfile / Dockerfile CMD) --
+# not by the app itself at import/startup time. The app has no business
+# creating or altering tables at runtime.
+app = FastAPI(title="IncidentDesk API")
 
 app.include_router(auth.router)
 app.include_router(incidents.router)

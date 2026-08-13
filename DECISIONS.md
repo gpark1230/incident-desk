@@ -847,3 +847,88 @@ Streams with consumer groups) before anything depended on never losing an
 event.
 
 ---
+
+## 2026-08-13 — Fixed local `pytest`/`uvicorn` crashing: the venv was x86_64 under Rosetta
+
+**What happened:** `python -m pytest tests/ -v` started crashing with `SIGABRT`
+(exit 134), with zero output — even test *collection* failed, before any test
+ran. The actual crash: `rosetta error: Attachment of code signature supplement
+failed` when `app.database` (via `psycopg2` → `libpq`) loaded `libcom_err`/
+`liblber`, its Kerberos/LDAP dependencies. `redis` and every other import
+worked fine — this was specific to `psycopg2`'s dylib chain.
+
+**Root cause:** the project's `venv/` had been created from
+`/Users/gavinpark/anaconda3/bin/python3.11` — an **x86_64** Python binary
+(confirmed via `file`), running entirely under Rosetta 2 translation on this
+machine's Apple Silicon (`arm64`) chip. Every single local `python`/`pytest`/
+`uvicorn` invocation all session had been translated, not run natively. The
+"Attachment of code signature supplement failed" error is Rosetta's AOT
+(ahead-of-time) translation cache rejecting a dylib mid-session — plausible
+after enough system/process churn (this session ran Colima's VM, several
+Docker builds, and dozens of background processes concurrently).
+
+**Real fix, not a workaround:** rather than trying to repair Rosetta's cache
+(a band-aid that could recur, and leaves every local run permanently slower
+than it needs to be), rebuilt `venv/` from `/opt/homebrew/bin/python3.11` — a
+**native arm64** Python (via Homebrew), same Python version (3.11.x). Moved
+the old venv aside, created the new one, reinstalled `requirements.txt`,
+verified `app.database` imports without crashing, then deleted the old backup
+once confirmed working.
+
+**This likely explains earlier session slowness too, not just the crash:**
+several `uvicorn` boots earlier in this session took unexpectedly long (one
+took ~20+ seconds to bind a port that normally takes ~2). At the time this was
+attributed to Colima/Docker CPU contention — plausible, but Rosetta
+translation overhead on every single process start was very likely compounding
+that the whole session, not identified until this specific crash forced
+investigating the venv's architecture directly.
+
+**Verified:** the exact import that crashed (`app.database`) now succeeds
+in ~0.2–3s depending on disk cache. Full pytest suite: **19 passed in 11.34s**
+— matching the from-scratch Docker container run (11.53s) and GitHub Actions
+CI (12.46s) almost exactly, where before this session had seen the same suite
+take anywhere from ~14s to a multi-minute hang depending on what else was
+running concurrently.
+
+**Worth remembering for interviews:** "why is this slow" and "why did this
+crash" turned out to be the same root cause, discovered by checking the
+*architecture* of the interpreter (`file venv/bin/python3`), not by profiling
+code — a reminder that inconsistent, hard-to-reproduce slowness is sometimes
+an environment/toolchain question, not an application code question.
+
+---
+
+## 2026-08-13 — Moved the project out of `~/Desktop`: iCloud sync was actively breaking git
+
+**What happened:** immediately after the Rosetta fix above, routine git
+commands (`git status`, `git log`, even `git commit`) started hanging for
+30–120+ seconds, and a *third* git ref corruption occurred (same
+`refs/heads/main` → `main 2` pattern documented earlier this session).
+Investigated with `ps aux` and found `bird` (macOS's `CloudDocsDaemon`, the
+process behind iCloud Drive's Desktop & Documents sync) pinned at ~51% CPU
+with 8+ minutes of accumulated CPU time. `brctl status` showed a sync backlog
+with entries stuck in `pending-scan` for **~1338 hours (~8 weeks)** — a
+long-standing, severe iCloud sync problem on this machine, not something this
+session caused, but this session's git activity (30+ commits, heavy
+`.git/objects` churn) gave it plenty to choke on.
+
+**Fix:** moved the project from `~/Desktop/incident-desk` (iCloud-synced by
+default on this Mac) to `~/Projects/incident-desk` (outside any synced
+folder). Getting there was itself blocked by the same problem: both `mv` and
+`ditto` hung indefinitely, apparently waiting on iCloud file-coordination
+locks somewhere in `.git/objects` (whose churned, numerous small files match
+exactly what `brctl status` showed stuck). Worked around it by not copying
+the compromised `.git` directory at all — did a fresh `git clone` from GitHub
+into the new location instead (everything was already pushed), copied over
+just the untracked `.env` file by hand, and rebuilt `venv/` fresh rather than
+copying it (it has hardcoded absolute paths tied to its original location
+regardless, so it needed rebuilding either way — see the Rosetta entry above).
+
+**Why this is the *real* fix, not another workaround:** every git-corruption
+incident this session (three, now) and a probably-nontrivial share of the
+general slowness trace back to the same root cause — `~/Desktop` being
+actively, continuously synced by a daemon that is independently already
+struggling with an 8-week backlog unrelated to this project. No amount of
+careful git usage fixes that; only not being in a synced folder does.
+
+---
